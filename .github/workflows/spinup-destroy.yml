@@ -1,0 +1,45 @@
+name: Configure Azure Environment
+
+on:
+    pull_request:
+        types: [labeled]
+
+env:
+  IMAGE_REGISTRY_URL: ghcr.io
+  AZURE_RESOURCE_GROUP: cd-with-actions
+  AZURE_APP_PLAN: actions-ttt-deployment
+  AZURE_LOCATION: '"East US"'
+  ###############################################
+  ### Replace <username> with GitHub username ###
+  ###############################################
+  AZURE_WEBAPP_NAME: PrakharKrM-ttt-app
+
+jobs:
+    set-up-azure-resources:
+        runs-on: ubuntu-latest
+        if: contains(github.event.pull_request.labels.*.name, 'spin up environment')
+        steps:
+            - name: Checkout Repository
+              uses: actions/checkout@v6
+            
+            - name: Login to Azure Portal
+              uses: azure/login@v3
+              with:
+                creds: ${{secrets.AZURE_CREDENTIALS}}
+                # tenant-id: ${{secrets.AZURE_CREDENTIALS.}}
+                # subscription-id: ${{secrets.AZURE_SUBSCRIPTION_ID}} 
+
+            - name: Create Azure app service plan which will define hosted azure app
+              if: success()
+              run: |
+                 az appservice plan create --resource-group ${{env.AZURE_RESOURCE_GROUP}} --name ${{env.AZURE_APP_PLAN}} --is-linux --sku F1 --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+        
+            - name: Creae Webapp resource 
+              if: success()
+              run: |
+                az webapp create --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --plan ${{ env.AZURE_APP_PLAN }} --name ${{ env.AZURE_WEBAPP_NAME }}  --deployment-container-image-name nginx --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
+            
+            - name: Creae Azureapp in created resource group and app service plan
+              if: success()
+              run: |
+                az webapp config container set --docker-custom-image-name nginx --docker-registry-server-password ${{secrets.CR_PAT}} --docker-registry-server-url https://${{env.IMAGE_REGISTRY_URL}} --docker-registry-server-user ${{github.actor}} --name ${{ env.AZURE_WEBAPP_NAME }} --resource-group ${{ env.AZURE_RESOURCE_GROUP }} --subscription ${{secrets.AZURE_SUBSCRIPTION_ID}}
